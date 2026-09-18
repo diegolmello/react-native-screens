@@ -236,6 +236,11 @@ class ScreenStackHeaderConfigViewManager :
         value: String?,
     ) = Unit
 
+    override fun setSubtitle(
+        view: ScreenStackHeaderConfig?,
+        value: String?,
+    ) = Unit
+
     override fun setBackTitleFontFamily(
         view: ScreenStackHeaderConfig?,
         value: String?,
