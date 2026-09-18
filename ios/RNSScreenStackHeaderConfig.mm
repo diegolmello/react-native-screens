@@ -507,6 +507,11 @@ RNS_IGNORE_SUPER_CALL_END
 
   if (shouldHide) {
     navitem.title = config.title;
+#if RNS_IPHONE_OS_VERSION_AVAILABLE(26_0)
+    if (@available(iOS 26.0, *)) {
+      navitem.subtitle = config.subtitle;
+    }
+#endif // RNS_IPHONE_OS_VERSION_AVAILABLE(26_0)
 
     // Setting navigation bar visibility is split to mitigate iOS 26 bug with bar button items.
     [navctr setNavigationBarHidden:YES animated:animated];
@@ -648,6 +653,11 @@ RNS_IGNORE_SUPER_CALL_END
   // This assignment should be done after `navitem.titleView = ...` assignment (iOS 16.0 bug).
   // See: https://github.com/software-mansion/react-native-screens/issues/1570 (comments)
   navitem.title = config.title;
+#if RNS_IPHONE_OS_VERSION_AVAILABLE(26_0)
+  if (@available(iOS 26.0, *)) {
+    navitem.subtitle = config.subtitle;
+  }
+#endif // RNS_IPHONE_OS_VERSION_AVAILABLE(26_0)
   navitem.leftBarButtonItems = [config barButtonItemsFromConfigs:config.headerLeftBarButtonItems
                                                 withCurrentItems:navitem.leftBarButtonItems];
   navitem.rightBarButtonItems = [config barButtonItemsFromConfigs:config.headerRightBarButtonItems
@@ -1025,6 +1035,7 @@ static RCTResizeMode resizeModeFromCppEquiv(react::ImageResizeMode resizeMode)
   }
 
   _title = RCTNSStringFromStringNilIfEmpty(newScreenProps.title);
+  _subtitle = RCTNSStringFromStringNilIfEmpty(newScreenProps.subtitle);
   if (newScreenProps.titleFontFamily != oldScreenProps.titleFontFamily) {
     _titleFontFamily = RCTNSStringFromStringNilIfEmpty(newScreenProps.titleFontFamily);
   }

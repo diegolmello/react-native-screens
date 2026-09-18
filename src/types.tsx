@@ -828,6 +828,14 @@ export interface ScreenStackHeaderConfigProps extends ViewProps {
    */
   title?: string | undefined;
   /**
+   * String to display in the header underneath the title.
+   *
+   * @platform ios
+   *
+   * @supported iOS 26 or higher
+   */
+  subtitle?: string | undefined;
+  /**
    * Allows for setting text color of the title.
    */
   titleColor?: ColorValue | undefined;

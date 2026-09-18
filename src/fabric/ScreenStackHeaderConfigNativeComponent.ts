@@ -66,6 +66,7 @@ export interface NativeProps extends ViewProps {
   largeTitleColor?: ColorValue | undefined;
   translucent?: boolean | undefined;
   title?: string | undefined;
+  subtitle?: string | undefined;
   titleFontFamily?: string | undefined;
   titleFontSize?: CT.Int32 | undefined;
   titleFontWeight?: string | undefined;

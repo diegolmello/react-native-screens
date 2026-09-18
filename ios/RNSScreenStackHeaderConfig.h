@@ -23,6 +23,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, retain) NSString *title;
+@property (nonatomic, retain) NSString *subtitle;
 @property (nonatomic, retain) NSString *titleFontFamily;
 @property (nonatomic, retain) NSNumber *titleFontSize;
 @property (nonatomic, retain) NSString *titleFontWeight;
