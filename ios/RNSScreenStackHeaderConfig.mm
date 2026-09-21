@@ -13,6 +13,7 @@
 #import <react/renderer/components/rnscreens/EventEmitters.h>
 #import <react/renderer/components/rnscreens/Props.h>
 #import <react/renderer/components/rnscreens/RCTComponentViewHelpers.h>
+#import <react/renderer/imagemanager/RCTImagePrimitivesConversions.h>
 #import <react/utils/ManagedObjectWrapper.h>
 #import <rnscreens/RNSScreenStackHeaderConfigComponentDescriptor.h>
 #import "RCTImageComponentView+RNSScreenStackHeaderConfig.h"
@@ -20,6 +21,7 @@
 #import "RNSBarButtonItem.h"
 #import "RNSConvert.h"
 #import "RNSDefines.h"
+#import "RNSImageLoadingHelper.h"
 #import "RNSScreen.h"
 #import "RNSSearchBar.h"
 #import "UINavigationBar+RNSUtility.h"
@@ -28,6 +30,10 @@ namespace react = facebook::react;
 
 static const NSNumber *const DEFAULT_TITLE_FONT_SIZE = @17;
 static const NSNumber *const DEFAULT_TITLE_LARGE_FONT_SIZE = @34;
+static const NSNumber *const DEFAULT_SUBTITLE_FONT_SIZE = @12;
+
+#define RNS_TITLE_GLYPH_PLACEHOLDER @"\uFFFC"
+#define RNS_TITLE_GLYPH_SEPARATOR @"\u2009"
 
 @interface RCTImageLoader (Private)
 - (id<RCTImageCache>)imageCache;
@@ -41,6 +47,105 @@ static const NSNumber *const DEFAULT_TITLE_LARGE_FONT_SIZE = @34;
     return YES;
   }
   return [[string stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] length] == 0;
+}
+
++ (nullable NSString *)rnscreens_stringByStrippingTitleGlyph:(nullable NSString *)string
+{
+  if (string == nil) {
+    return nil;
+  }
+  NSCharacterSet *glyphCharacters =
+      [NSCharacterSet characterSetWithCharactersInString:RNS_TITLE_GLYPH_PLACEHOLDER RNS_TITLE_GLYPH_SEPARATOR];
+  return [[string componentsSeparatedByCharactersInSet:glyphCharacters] componentsJoinedByString:@""];
+}
+
+@end
+
+@interface RNSHeaderImageSlot : NSObject
+
+- (nullable UIImage *)resolveImageFromSource:(nullable RCTImageSource *)source
+                             withImageLoader:(nullable RCTImageLoader *)imageLoader
+                                    onLoaded:(nonnull dispatch_block_t)onLoaded;
+
+- (void)reset;
+
+@end
+
+@implementation RNSHeaderImageSlot {
+  NSString *_Nullable _requestedUri;
+  NSUInteger _generation;
+}
+
++ (NSCache<NSString *, UIImage *> *)sharedImageCache
+{
+  static NSCache<NSString *, UIImage *> *cache;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    cache = [NSCache new];
+  });
+  return cache;
+}
+
+- (nullable UIImage *)resolveImageFromSource:(nullable RCTImageSource *)source
+                             withImageLoader:(nullable RCTImageLoader *)imageLoader
+                                    onLoaded:(nonnull dispatch_block_t)onLoaded
+{
+  if (source == nil) {
+    [self reset];
+    return nil;
+  }
+
+  NSString *uri = source.request.URL.absoluteString;
+  if (uri == nil) {
+    [self reset];
+    return nil;
+  }
+
+  const BOOL isNewSource = ![uri isEqualToString:_requestedUri];
+  if (isNewSource) {
+    _requestedUri = uri;
+    _generation += 1;
+  }
+
+  UIImage *cachedImage = [[RNSHeaderImageSlot sharedImageCache] objectForKey:uri];
+  if (cachedImage != nil) {
+    return cachedImage;
+  }
+
+  if (!isNewSource || imageLoader == nil) {
+    return nil;
+  }
+
+  const NSUInteger generation = _generation;
+
+  __weak RNSHeaderImageSlot *weakSelf = self;
+  [RNSImageLoadingHelper
+      loadImageFromSource:source
+          withImageLoader:imageLoader
+               asTemplate:YES
+          completionBlock:^(UIImage *image) {
+            RNSHeaderImageSlot *strongSelf = weakSelf;
+            if (strongSelf == nil || generation != strongSelf->_generation) {
+              return;
+            }
+            if (image == nil) {
+#if !defined(NDEBUG)
+              RCTLogWarn(
+                  @"[RNScreens] Failed to load header image source \"%@\", falling back to text-only header.", uri);
+#endif // !defined(NDEBUG)
+              return;
+            }
+            [[RNSHeaderImageSlot sharedImageCache] setObject:image forKey:uri];
+            dispatch_async(dispatch_get_main_queue(), onLoaded);
+          }];
+
+  return nil;
+}
+
+- (void)reset
+{
+  _requestedUri = nil;
+  _generation += 1;
 }
 
 @end
@@ -59,6 +164,8 @@ static const NSNumber *const DEFAULT_TITLE_LARGE_FONT_SIZE = @34;
   /// transaction via RCTMountingTransactionObserving protocol.
   bool _addedReactSubviewsInCurrentTransaction;
   RCTImageLoader *_imageLoader;
+  RNSHeaderImageSlot *_titleImageSlot;
+  RNSHeaderImageSlot *_subtitleImageSlot;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame
@@ -69,6 +176,8 @@ static const NSNumber *const DEFAULT_TITLE_LARGE_FONT_SIZE = @34;
     _show = YES;
     _translucent = NO;
     _addedReactSubviewsInCurrentTransaction = false;
+    _titleImageSlot = [RNSHeaderImageSlot new];
+    _subtitleImageSlot = [RNSHeaderImageSlot new];
     _lastSendState = react::RNSScreenStackHeaderConfigState(react::Size{}, react::EdgeInsets{}, react::Point{});
     [self initProps];
   }
@@ -131,6 +240,52 @@ RNS_IGNORE_SUPER_CALL_END
   return nil;
 }
 
+- (nullable UIImage *)resolvedTitleImage
+{
+  __weak RNSScreenStackHeaderConfig *weakSelf = self;
+  return [_titleImageSlot resolveImageFromSource:_titleImageSource
+                                 withImageLoader:_imageLoader
+                                        onLoaded:^{
+                                          [weakSelf updateViewControllerIfNeeded];
+                                        }];
+}
+
+- (nullable UIImage *)resolvedSubtitleImage
+{
+  __weak RNSScreenStackHeaderConfig *weakSelf = self;
+  return [_subtitleImageSlot resolveImageFromSource:_subtitleImageSource
+                                    withImageLoader:_imageLoader
+                                           onLoaded:^{
+                                             [weakSelf updateViewControllerIfNeeded];
+                                           }];
+}
+
+- (nullable NSAttributedString *)attributedTitle
+{
+  UIImage *glyph = [self resolvedTitleImage];
+  if (glyph == nil || _title == nil) {
+    return nil;
+  }
+
+  return [RNSScreenStackHeaderConfig
+      attributedStringWithLeadingGlyph:glyph
+                                  text:_title
+                        textAttributes:[RNSScreenStackHeaderConfig titleTextAttributesForConfig:self]];
+}
+
+- (nullable NSAttributedString *)attributedSubtitle
+{
+  UIImage *glyph = [self resolvedSubtitleImage];
+  if (glyph == nil || _subtitle == nil) {
+    return nil;
+  }
+
+  return [RNSScreenStackHeaderConfig
+      attributedStringWithLeadingGlyph:glyph
+                                  text:_subtitle
+                        textAttributes:[RNSScreenStackHeaderConfig subtitleTextAttributesForConfig:self]];
+}
+
 - (void)updateViewControllerIfNeeded
 {
   UIViewController *vc = _screenView.controller;
@@ -181,10 +336,10 @@ RNS_IGNORE_SUPER_CALL_END
 
   if (newState != _lastSendState) {
     _lastSendState = newState;
-    _state->updateState(std::move(newState),
-                        _synchronousShadowStateUpdatesEnabled
-                            ? facebook::react::EventQueue::UpdateMode::unstable_Immediate
-                            : facebook::react::EventQueue::UpdateMode::Asynchronous);
+    _state->updateState(
+        std::move(newState),
+        _synchronousShadowStateUpdatesEnabled ? facebook::react::EventQueue::UpdateMode::unstable_Immediate
+                                              : facebook::react::EventQueue::UpdateMode::Asynchronous);
   }
 }
 
@@ -293,10 +448,11 @@ RNS_IGNORE_SUPER_CALL_END
         // in the image attribute not being updated. We manually set frame to the size of an image
         // in order to trigger proper reload that'd update the image attribute.
         RCTImageSource *imageSource = [RNSScreenStackHeaderConfig imageSourceFromImageView:imageView];
-        [imageView reactSetFrame:CGRectMake(imageView.frame.origin.x,
-                                            imageView.frame.origin.y,
-                                            imageSource.size.width,
-                                            imageSource.size.height)];
+        [imageView reactSetFrame:CGRectMake(
+                                     imageView.frame.origin.x,
+                                     imageView.frame.origin.y,
+                                     imageSource.size.width,
+                                     imageSource.size.height)];
       }
 
       UIImage *image = imageView.image;
@@ -365,6 +521,83 @@ RNS_IGNORE_SUPER_CALL_END
   }
 }
 
++ (NSDictionary<NSAttributedStringKey, id> *)resolvedTitleTextAttributesWithFontFamily:(NSString *)fontFamily
+                                                                              fontSize:(NSNumber *)fontSize
+                                                                            fontWeight:(NSString *)fontWeight
+                                                                                 color:(UIColor *)color
+                                                                      boldFallbackFont:(UIFont *)boldFallbackFont
+{
+  NSMutableDictionary<NSAttributedStringKey, id> *attrs = [NSMutableDictionary new];
+
+  // Ignore changing header title color on visionOS
+#if !TARGET_OS_VISION
+  if (color) {
+    attrs[NSForegroundColorAttributeName] = color;
+  }
+#endif
+
+  if (fontFamily || fontWeight) {
+    attrs[NSFontAttributeName] = [RCTFont updateFont:nil
+                                          withFamily:fontFamily
+                                                size:fontSize
+                                              weight:fontWeight
+                                               style:nil
+                                             variant:nil
+                                     scaleMultiplier:1.0];
+  } else {
+    attrs[NSFontAttributeName] = boldFallbackFont;
+  }
+
+  return attrs;
+}
+
++ (NSDictionary<NSAttributedStringKey, id> *)titleTextAttributesForConfig:(RNSScreenStackHeaderConfig *)config
+{
+  NSNumber *size = config.titleFontSize ?: [DEFAULT_TITLE_FONT_SIZE copy];
+  return [self resolvedTitleTextAttributesWithFontFamily:config.titleFontFamily
+                                                fontSize:size
+                                              fontWeight:config.titleFontWeight
+                                                   color:config.titleColor
+                                        boldFallbackFont:[UIFont boldSystemFontOfSize:[size floatValue]]];
+}
+
++ (NSDictionary<NSAttributedStringKey, id> *)subtitleTextAttributesForConfig:(RNSScreenStackHeaderConfig *)config
+{
+  NSNumber *size = [DEFAULT_SUBTITLE_FONT_SIZE copy];
+  return [self resolvedTitleTextAttributesWithFontFamily:config.titleFontFamily
+                                                fontSize:size
+                                              fontWeight:nil
+                                                   color:config.titleColor
+                                        boldFallbackFont:[UIFont systemFontOfSize:[size floatValue]]];
+}
+
++ (NSAttributedString *)attributedStringWithLeadingGlyph:(UIImage *)glyph
+                                                    text:(NSString *)text
+                                          textAttributes:(NSDictionary<NSAttributedStringKey, id> *)textAttributes
+{
+  UIFont *font =
+      textAttributes[NSFontAttributeName] ?: [UIFont boldSystemFontOfSize:[DEFAULT_TITLE_FONT_SIZE floatValue]];
+  UIColor *tintColor = textAttributes[NSForegroundColorAttributeName] ?: UIColor.labelColor;
+
+  CGFloat glyphHeight = font.capHeight;
+  CGSize intrinsicSize = glyph.size;
+  CGFloat aspectRatio = intrinsicSize.height > 0 ? intrinsicSize.width / intrinsicSize.height : 1;
+
+  NSTextAttachment *attachment = [NSTextAttachment new];
+  attachment.image = [[glyph imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
+      imageWithTintColor:tintColor
+           renderingMode:UIImageRenderingModeAlwaysOriginal];
+  attachment.bounds = CGRectMake(0, 0, glyphHeight * aspectRatio, glyphHeight);
+
+  NSMutableAttributedString *composed = [[NSMutableAttributedString alloc]
+      initWithAttributedString:[NSAttributedString attributedStringWithAttachment:attachment]];
+  [composed appendAttributedString:[[NSAttributedString alloc]
+                                       initWithString:[RNS_TITLE_GLYPH_SEPARATOR stringByAppendingString:text]]];
+  [composed addAttributes:textAttributes range:NSMakeRange(0, composed.length)];
+
+  return composed;
+}
+
 + (UINavigationBarAppearance *)buildAppearance:(UIViewController *)vc withConfig:(RNSScreenStackHeaderConfig *)config
 {
   UINavigationBarAppearance *appearance = [UINavigationBarAppearance new];
@@ -408,59 +641,20 @@ RNS_IGNORE_SUPER_CALL_END
   }
 
   if (config.titleFontFamily || config.titleFontSize || config.titleFontWeight || config.titleColor) {
-    NSMutableDictionary *attrs = [NSMutableDictionary new];
-
-    // Ignore changing header title color on visionOS
-#if !TARGET_OS_VISION
-    if (config.titleColor) {
-      attrs[NSForegroundColorAttributeName] = config.titleColor;
-    }
-#endif
-
-    NSString *family = config.titleFontFamily ?: nil;
-    NSNumber *size = config.titleFontSize ?: [DEFAULT_TITLE_FONT_SIZE copy];
-    NSString *weight = config.titleFontWeight ?: nil;
-    if (family || weight) {
-      attrs[NSFontAttributeName] = [RCTFont updateFont:nil
-                                            withFamily:config.titleFontFamily
-                                                  size:size
-                                                weight:weight
-                                                 style:nil
-                                               variant:nil
-                                       scaleMultiplier:1.0];
-    } else {
-      attrs[NSFontAttributeName] = [UIFont boldSystemFontOfSize:[size floatValue]];
-    }
-    appearance.titleTextAttributes = attrs;
+    appearance.titleTextAttributes = [self titleTextAttributesForConfig:config];
   }
 
   if (config.largeTitleFontFamily || config.largeTitleFontSize || config.largeTitleFontWeight ||
       config.largeTitleColor || config.titleColor) {
-    NSMutableDictionary *largeAttrs = [NSMutableDictionary new];
-
-    // Ignore changing header title color on visionOS
-#if !TARGET_OS_VISION
-    if (config.largeTitleColor || config.titleColor) {
-      largeAttrs[NSForegroundColorAttributeName] = config.largeTitleColor ? config.largeTitleColor : config.titleColor;
-    }
-#endif
-
-    NSString *largeFamily = config.largeTitleFontFamily ?: nil;
     NSNumber *largeSize = config.largeTitleFontSize ?: [DEFAULT_TITLE_LARGE_FONT_SIZE copy];
-    NSString *largeWeight = config.largeTitleFontWeight ?: nil;
-    if (largeFamily || largeWeight) {
-      largeAttrs[NSFontAttributeName] = [RCTFont updateFont:nil
-                                                 withFamily:largeFamily
-                                                       size:largeSize
-                                                     weight:largeWeight
-                                                      style:nil
-                                                    variant:nil
-                                            scaleMultiplier:1.0];
-    } else {
-      largeAttrs[NSFontAttributeName] = [UIFont systemFontOfSize:[largeSize floatValue] weight:UIFontWeightBold];
-    }
-
-    appearance.largeTitleTextAttributes = largeAttrs;
+    UIColor *largeColor = config.largeTitleColor ? config.largeTitleColor : config.titleColor;
+    appearance.largeTitleTextAttributes =
+        [self resolvedTitleTextAttributesWithFontFamily:config.largeTitleFontFamily
+                                               fontSize:largeSize
+                                             fontWeight:config.largeTitleFontWeight
+                                                  color:largeColor
+                                       boldFallbackFont:[UIFont systemFontOfSize:[largeSize floatValue]
+                                                                          weight:UIFontWeightBold]];
   }
 
   UIImage *backButtonImage = [config loadBackButtonImageInViewController:vc];
@@ -656,6 +850,16 @@ RNS_IGNORE_SUPER_CALL_END
 #if RNS_IPHONE_OS_VERSION_AVAILABLE(26_0)
   if (@available(iOS 26.0, *)) {
     navitem.subtitle = config.subtitle;
+
+    NSAttributedString *attributedTitle = [config attributedTitle];
+    if (attributedTitle != nil) {
+      navitem.attributedTitle = attributedTitle;
+    }
+
+    NSAttributedString *attributedSubtitle = [config attributedSubtitle];
+    if (attributedSubtitle != nil) {
+      navitem.attributedSubtitle = attributedSubtitle;
+    }
   }
 #endif // RNS_IPHONE_OS_VERSION_AVAILABLE(26_0)
   navitem.leftBarButtonItems = [config barButtonItemsFromConfigs:config.headerLeftBarButtonItems
@@ -710,7 +914,8 @@ RNS_IGNORE_SUPER_CALL_END
   const auto *config = self;
 
   const auto isBackTitleBlank = [NSString rnscreens_isBlankOrNull:config.backTitle] == YES;
-  NSString *resolvedBackTitle = isBackTitleBlank ? prevItem.title : config.backTitle;
+  NSString *resolvedBackTitle =
+      isBackTitleBlank ? [NSString rnscreens_stringByStrippingTitleGlyph:prevItem.title] : config.backTitle;
 
   // If previous screen controller was recreated (e.g. when you go back to tab with stack that has multiple screens),
   // its navigationItem may not have any information from screen's headerConfig, including the title.
@@ -868,12 +1073,13 @@ RNS_IGNORE_SUPER_CALL_END
     return;
   }
 
-  RCTAssert(childComponentView.superview == nil,
-            @"Attempt to mount already mounted component view. (parent: %@, child: %@, index: %@, existing parent: %@)",
-            self,
-            childComponentView,
-            @(index),
-            @([childComponentView.superview tag]));
+  RCTAssert(
+      childComponentView.superview == nil,
+      @"Attempt to mount already mounted component view. (parent: %@, child: %@, index: %@, existing parent: %@)",
+      self,
+      childComponentView,
+      @(index),
+      @([childComponentView.superview tag]));
 
   //  [_reactSubviews insertObject:(RNSScreenStackHeaderSubview *)childComponentView atIndex:index];
   [self insertReactSubview:(RNSScreenStackHeaderSubview *)childComponentView atIndex:index];
@@ -997,6 +1203,8 @@ static RCTResizeMode resizeModeFromCppEquiv(react::ImageResizeMode resizeMode)
 {
   [super prepareForRecycle];
   _initialPropsSet = NO;
+  [_titleImageSlot reset];
+  [_subtitleImageSlot reset];
 
   _lastSendState = react::RNSScreenStackHeaderConfigState(react::Size{}, react::EdgeInsets{}, react::Point{});
 }
@@ -1075,6 +1283,24 @@ static RCTResizeMode resizeModeFromCppEquiv(react::ImageResizeMode resizeMode)
   // We cannot compare SharedColor because it is shared value.
   // We could compare color value, but it is more performant to just assign new value
   _titleColor = RCTUIColorFromSharedColor(newScreenProps.titleColor);
+  if (newScreenProps.titleImageSource != oldScreenProps.titleImageSource) {
+    const auto &titleImageSource = newScreenProps.titleImageSource;
+    _titleImageSource = titleImageSource.uri.empty()
+        ? nil
+        : [[RCTImageSource alloc]
+              initWithURLRequest:NSURLRequestFromImageSource(titleImageSource)
+                            size:CGSizeMake(titleImageSource.size.width, titleImageSource.size.height)
+                           scale:titleImageSource.scale];
+  }
+  if (newScreenProps.subtitleImageSource != oldScreenProps.subtitleImageSource) {
+    const auto &subtitleImageSource = newScreenProps.subtitleImageSource;
+    _subtitleImageSource = subtitleImageSource.uri.empty()
+        ? nil
+        : [[RCTImageSource alloc]
+              initWithURLRequest:NSURLRequestFromImageSource(subtitleImageSource)
+                            size:CGSizeMake(subtitleImageSource.size.width, subtitleImageSource.size.height)
+                           scale:subtitleImageSource.scale];
+  }
   _largeTitleColor = RCTUIColorFromSharedColor(newScreenProps.largeTitleColor);
   _color = RCTUIColorFromSharedColor(newScreenProps.color);
   _backgroundColor = RCTUIColorFromSharedColor(newScreenProps.backgroundColor);

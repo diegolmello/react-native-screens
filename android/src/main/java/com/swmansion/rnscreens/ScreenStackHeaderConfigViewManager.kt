@@ -3,6 +3,7 @@ package com.swmansion.rnscreens
 import android.view.View
 import com.facebook.react.bridge.JSApplicationCausedNativeException
 import com.facebook.react.bridge.ReadableArray
+import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.uimanager.ReactStylesDiffMap
 import com.facebook.react.uimanager.StateWrapper
@@ -239,6 +240,16 @@ class ScreenStackHeaderConfigViewManager :
     override fun setSubtitle(
         view: ScreenStackHeaderConfig?,
         value: String?,
+    ) = Unit
+
+    override fun setTitleImageSource(
+        view: ScreenStackHeaderConfig?,
+        value: ReadableMap?,
+    ) = Unit
+
+    override fun setSubtitleImageSource(
+        view: ScreenStackHeaderConfig?,
+        value: ReadableMap?,
     ) = Unit
 
     override fun setBackTitleFontFamily(

@@ -4,6 +4,7 @@ import { codegenNativeComponent } from 'react-native';
 import type {
   CodegenTypes as CT,
   HostComponent,
+  ImageSource,
   ViewProps,
   ColorValue,
 } from 'react-native';
@@ -71,6 +72,8 @@ export interface NativeProps extends ViewProps {
   titleFontSize?: CT.Int32 | undefined;
   titleFontWeight?: string | undefined;
   titleColor?: ColorValue | undefined;
+  titleImageSource?: ImageSource | undefined;
+  subtitleImageSource?: ImageSource | undefined;
   disableBackButtonMenu?: boolean | undefined;
   backButtonDisplayMode?: CT.WithDefault<BackButtonDisplayMode, 'default'>;
   hideBackButton?: boolean | undefined;

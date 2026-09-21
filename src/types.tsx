@@ -840,6 +840,29 @@ export interface ScreenStackHeaderConfigProps extends ViewProps {
    */
   titleColor?: ColorValue | undefined;
   /**
+   * Image rendered as a leading glyph before the title. The glyph is sized from
+   * the resolved title font and tinted with `titleColor`.
+   * Requires iOS 26 or higher and is ignored on Android and earlier iOS versions.
+   * The glyph is hidden while the large title is expanded and appears on collapse.
+   * A custom header title view replaces the title and its glyph.
+   *
+   * @platform ios
+   *
+   * @supported iOS 26 or higher
+   */
+  titleImageSource?: ImageSourcePropType | undefined;
+  /**
+   * Image rendered as a leading glyph before the subtitle. The glyph is sized
+   * from the resolved subtitle font and tinted with `titleColor`.
+   * Requires iOS 26 or higher and is ignored on Android and earlier iOS versions.
+   * A custom header title view does not replace the subtitle or its glyph.
+   *
+   * @platform ios
+   *
+   * @supported iOS 26 or higher
+   */
+  subtitleImageSource?: ImageSourcePropType | undefined;
+  /**
    * Customize font family to be used for the title.
    */
   titleFontFamily?: string | undefined;

@@ -8,9 +8,13 @@
 #import "RNSScreenStackHeaderSubview.h"
 #import "RNSSearchBar.h"
 
+@class RCTImageSource;
+
 @interface NSString (RNSStringUtil)
 
 + (BOOL)rnscreens_isBlankOrNull:(nullable NSString *)string;
+
++ (nullable NSString *)rnscreens_stringByStrippingTitleGlyph:(nullable NSString *)string;
 
 @end
 
@@ -28,6 +32,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, retain) NSNumber *titleFontSize;
 @property (nonatomic, retain) NSString *titleFontWeight;
 @property (nonatomic, retain) UIColor *titleColor;
+@property (nonatomic, retain, nullable) RCTImageSource *titleImageSource;
+@property (nonatomic, retain, nullable) RCTImageSource *subtitleImageSource;
 @property (nonatomic, retain) NSString *backTitle;
 @property (nonatomic, retain) NSString *backTitleFontFamily;
 @property (nonatomic, retain) NSNumber *backTitleFontSize;
