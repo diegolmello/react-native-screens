@@ -613,8 +613,10 @@ RNS_IGNORE_SUPER_CALL_END
       appearance.shadowColor = shadowColor;
       appearance.shadowImage = shadowImage;
     }
-  } else {
+  } else if (config.backgroundColor) {
     [appearance configureWithOpaqueBackground];
+  } else {
+    [appearance configureWithDefaultBackground];
   }
 
   // set background color if specified

@@ -87,6 +87,9 @@ function StackV4TitleImageSource() {
     | 'large'
     | 'custom'
     | 'kitchenSink'
+    | 'opaqueBackground'
+    | 'translucentBackground'
+    | 'transparentBackground'
     | null
   >(null);
 
@@ -141,6 +144,18 @@ function StackV4TitleImageSource() {
           <Button
             title="Push kitchen sink header"
             onPress={() => setPushedScreen('kitchenSink')}
+          />
+          <Button
+            title="Push opaque background"
+            onPress={() => setPushedScreen('opaqueBackground')}
+          />
+          <Button
+            title="Push translucent background"
+            onPress={() => setPushedScreen('translucentBackground')}
+          />
+          <Button
+            title="Push transparent background"
+            onPress={() => setPushedScreen('transparentBackground')}
           />
         </View>
       </Screen>
@@ -303,6 +318,42 @@ function StackV4TitleImageSource() {
               <SearchBar placeholder="Search inbox" />
             </ScreenStackHeaderSearchBarView>
           </ScreenStackHeaderConfig>
+          <View style={{ flex: 1 }} />
+        </Screen>
+      )}
+      {pushedScreen === 'opaqueBackground' && (
+        <Screen
+          key="opaqueBackground"
+          activityState={2}
+          isNativeStack
+          onDismissed={() => setPushedScreen(null)}>
+          <ScreenStackHeaderConfig title="opaque bg" backgroundColor="tomato" />
+          <View style={{ flex: 1 }} />
+        </Screen>
+      )}
+      {pushedScreen === 'translucentBackground' && (
+        <Screen
+          key="translucentBackground"
+          activityState={2}
+          isNativeStack
+          onDismissed={() => setPushedScreen(null)}>
+          <ScreenStackHeaderConfig
+            title="translucent bg"
+            backgroundColor="rgba(255,99,71,0.5)"
+          />
+          <View style={{ flex: 1 }} />
+        </Screen>
+      )}
+      {pushedScreen === 'transparentBackground' && (
+        <Screen
+          key="transparentBackground"
+          activityState={2}
+          isNativeStack
+          onDismissed={() => setPushedScreen(null)}>
+          <ScreenStackHeaderConfig
+            title="transparent bg"
+            backgroundColor="transparent"
+          />
           <View style={{ flex: 1 }} />
         </Screen>
       )}
