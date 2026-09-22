@@ -2,14 +2,63 @@ import searchIcon from '@assets/search_black.png';
 import bellIcon from '@assets/variableIcons/icon.png';
 import { createScenario } from '@apps/tests/shared/helpers';
 import React, { useEffect, useState } from 'react';
-import { Button, ScrollView, Text, View } from 'react-native';
+import { Alert, Button, ScrollView, Text, View } from 'react-native';
 import {
   Screen,
   ScreenStack,
   ScreenStackHeaderConfig,
   ScreenStackHeaderCenterView,
+  ScreenStackHeaderSearchBarView,
+  SearchBar,
+  type HeaderBarButtonItem,
 } from 'react-native-screens';
 import { scenarioDescription } from './scenario-description';
+
+const kitchenSinkHeaderLeftBarButtonItems: HeaderBarButtonItem[] = [
+  {
+    type: 'button',
+    icon: { type: 'sfSymbol', name: 'line.3.horizontal' },
+    accessibilityLabel: 'Open drawer',
+    onPress: () => Alert.alert('Drawer opened'),
+  },
+];
+
+const kitchenSinkHeaderRightBarButtonItems: HeaderBarButtonItem[] = [
+  {
+    type: 'button',
+    icon: { type: 'sfSymbol', name: 'square.and.arrow.up' },
+    accessibilityLabel: 'Share',
+    onPress: () => Alert.alert('Share pressed'),
+  },
+  {
+    type: 'menu',
+    icon: { type: 'sfSymbol', name: 'ellipsis.circle' },
+    menu: {
+      title: 'More actions',
+      items: [
+        {
+          type: 'action',
+          title: 'Rename',
+          icon: { type: 'sfSymbol', name: 'pencil' },
+          onPress: () => Alert.alert('Rename pressed'),
+        },
+        {
+          type: 'action',
+          title: 'Archive',
+          icon: { type: 'sfSymbol', name: 'archivebox' },
+          onPress: () => Alert.alert('Archive pressed'),
+        },
+        {
+          type: 'action',
+          title: 'Delete',
+          icon: { type: 'sfSymbol', name: 'trash' },
+          destructive: true,
+          onPress: () => Alert.alert('Delete pressed'),
+        },
+      ],
+    },
+  },
+];
 
 const REMOTE_ICON_SOURCE = {
   uri: 'https://reactnative.dev/img/tiny_logo.png',
@@ -37,6 +86,7 @@ function StackV4TitleImageSource() {
     | 'racing'
     | 'large'
     | 'custom'
+    | 'kitchenSink'
     | null
   >(null);
 
@@ -87,6 +137,10 @@ function StackV4TitleImageSource() {
           <Button
             title="Push custom title view"
             onPress={() => setPushedScreen('custom')}
+          />
+          <Button
+            title="Push kitchen sink header"
+            onPress={() => setPushedScreen('kitchenSink')}
           />
         </View>
       </Screen>
@@ -228,6 +282,26 @@ function StackV4TitleImageSource() {
             <ScreenStackHeaderCenterView>
               <Text style={{ color: 'tomato' }}>Custom title view</Text>
             </ScreenStackHeaderCenterView>
+          </ScreenStackHeaderConfig>
+          <View style={{ flex: 1 }} />
+        </Screen>
+      )}
+      {pushedScreen === 'kitchenSink' && (
+        <Screen
+          key="kitchenSink"
+          activityState={2}
+          isNativeStack
+          onDismissed={() => setPushedScreen(null)}>
+          <ScreenStackHeaderConfig
+            title="Inbox"
+            subtitle="12 unread"
+            titleImageSource={searchIcon}
+            subtitleImageSource={bellIcon}
+            headerLeftBarButtonItems={kitchenSinkHeaderLeftBarButtonItems}
+            headerRightBarButtonItems={kitchenSinkHeaderRightBarButtonItems}>
+            <ScreenStackHeaderSearchBarView>
+              <SearchBar placeholder="Search inbox" />
+            </ScreenStackHeaderSearchBarView>
           </ScreenStackHeaderConfig>
           <View style={{ flex: 1 }} />
         </Screen>
